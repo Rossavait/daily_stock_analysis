@@ -13,6 +13,8 @@ from typing import Optional, List, Any, Dict, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from api.v1.schemas.market_phase import MarketPhaseSummary
+
 
 class HistoryItem(BaseModel):
     """历史记录摘要（列表展示用）"""
@@ -131,6 +133,10 @@ class ReportMeta(BaseModel):
         None,
         description="历史报告元数据中的模型快照，仅用于展示，不影响 Provider/Model/Base URL 运行时路由",
     )
+    market_phase_summary: Optional[MarketPhaseSummary] = Field(
+        None,
+        description="本次分析市场阶段低敏摘要",
+    )
 
 
 class ReportSummary(BaseModel):
@@ -176,6 +182,7 @@ class AnalysisContextPackOverviewBlock(BaseModel):
         "stale",
         "estimated",
         "partial",
+        "fetch_failed",
     ] = Field(..., description="数据块质量状态")
     source: Optional[str] = Field(None, description="数据来源")
     warnings: List[str] = Field(default_factory=list, description="数据块告警码")
@@ -192,6 +199,7 @@ class AnalysisContextPackOverviewCounts(BaseModel):
     stale: int = 0
     estimated: int = 0
     partial: int = 0
+    fetch_failed: int = 0
 
 
 class AnalysisContextPackOverviewMetadata(BaseModel):
@@ -199,6 +207,18 @@ class AnalysisContextPackOverviewMetadata(BaseModel):
 
     trigger_source: Optional[str] = Field(None, description="触发来源")
     news_result_count: Optional[int] = Field(None, description="新闻结果数量")
+
+
+class AnalysisContextPackOverviewDataQuality(BaseModel):
+    """AnalysisContextPack 可见摘要数据质量评分"""
+
+    overall_score: Optional[int] = Field(None, ge=0, le=100, description="输入数据质量总分")
+    level: Optional[Literal["good", "usable", "limited", "poor"]] = Field(
+        None,
+        description="输入数据质量等级",
+    )
+    block_scores: Dict[str, int] = Field(default_factory=dict, description="固定数据块质量分")
+    limitations: List[str] = Field(default_factory=list, description="低敏数据限制说明")
 
 
 class AnalysisContextPackOverview(BaseModel):
@@ -209,6 +229,10 @@ class AnalysisContextPackOverview(BaseModel):
     subject: AnalysisContextPackOverviewSubject
     blocks: List[AnalysisContextPackOverviewBlock] = Field(default_factory=list)
     counts: AnalysisContextPackOverviewCounts
+    data_quality: Optional[AnalysisContextPackOverviewDataQuality] = Field(
+        None,
+        description="本次分析输入数据质量低敏摘要",
+    )
     warnings: List[str] = Field(default_factory=list, description="顶层数据质量提醒")
     metadata: AnalysisContextPackOverviewMetadata = Field(default_factory=AnalysisContextPackOverviewMetadata)
 
