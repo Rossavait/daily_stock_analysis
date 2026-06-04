@@ -535,7 +535,9 @@ services:
   作用：把 `.env` 中的键值作为容器启动时的环境变量传入 Python 进程。
 - 运行时配置写入：不要把宿主机 `.env` 作为单文件 bind mount 覆盖容器内 `.env` 路径。Docker 会把单文件挂载目标作为 mount point，配置保存时的 `os.replace()` 原子更新可能失败并报 `Device or resource busy`，回退写入也可能受权限限制。
 
-默认 Compose 和 `docker run` 示例仅使用 `env_file` / `--env-file` 注入启动配置，不再把宿主机 `.env` 单文件挂载进容器。WebUI 中保存的运行时配置默认写入容器内部配置文件，不等同于回写宿主机 `.env`；删除或重建容器后仍以启动时注入的 `.env` 为准。若需要持久化运行时配置，请将写入目标放到可写数据卷中（例如通过 `ENV_FILE=/app/data/runtime.env` 指向 `data` volume 中的文件），不要使用 `.env` 单文件 bind mount。
+默认 Compose 和 `docker run` 示例仅使用 `env_file` / `--env-file` 注入启动配置，不再把宿主机 `.env` 单文件挂载进容器。WebUI 设置页会在当前活跃 `.env` 文件缺少某些键时展示启动注入的同名环境变量作为兜底，避免 Docker 用户误以为配置完全未读取；但“导出 `.env`”仍只导出当前活跃配置文件内容。
+
+WebUI 中保存的运行时配置默认写入容器内部配置文件，不等同于回写宿主机 `.env`；删除或重建容器后仍以启动时注入的 `.env` 为准。若需要持久化运行时配置，请将写入目标放到可写数据卷中（例如通过 `ENV_FILE=/app/data/runtime.env` 指向 `data` volume 中的文件），不要使用 `.env` 单文件 bind mount。注意：如果启动时的 `env_file`、`--env-file`、`docker run -e` 或 Compose `environment:` 中仍保留同名旧值，容器重启时这些进程环境变量仍可能覆盖运行时文件中的保存值；要让 WebUI 保存值接管，请同步更新或移除启动环境中的同名覆盖。
 
 推荐同时映射这几个目录：
 
@@ -842,6 +844,31 @@ P6 将既有 `market_phase_summary` 与 `analysis_context_pack_overview` 复用�
 历史列表、单股历史、StockBar 和详情会从 `context_snapshot` 提取 `market_phase_summary`；旧记录、缺失 snapshot 或解析失败返回 `null`。回测结果项增加 `market_phase` 与 `market_phase_summary`，结果列表和 performance/summary 查询支持 `analysis_phase=premarket|intraday|postmarket|unknown`；统计统一把 `intraday`、`lunch_break`、`closing_auction` 归入 intraday，把 `non_trading`、缺失和非法值归入 unknown。带 phase 过滤的回测查询会在 repository 层按 SQL 条件批量读取结果和 snapshot，先 bucket 再分页，并在 summary diagnostics 中返回 `phase_breakdown` 与 `raw_phase_counts`。
 
 通知摘要复用统一公开格式化 helper，只输出阶段标签、trigger source、partial-bar warning、数据质量等级和前两条 limitations；不会输出 raw context pack、Prompt、新闻正文或持仓敏感明细。Web 告警历史、持仓、历史列表、StockBar 和回测页同步展示阶段 badge、质量摘要、phase filter 与 breakdown。
+
+#### 文档、配置与迁移说明（Issue #1386 P7）
+
+P7 只做盘前 / 盘中 / 盘后分析的用户可见说明收口，不新增运行时能力、配置项、API 参数、数据库迁移、Web 阶段覆盖 selector、Bot phase 参数或 GitHub Actions 盘中 workflow。默认每日收盘分析、默认 GitHub Actions 和现有 schedule 行为保持不变。
+
+推荐使用方式：
+
+| 场景 | 推荐用途 | 说明 |
+| --- | --- | --- |
+| 盘前 | 生成开盘计划和观察条件 | 不能把尚未发生的今日走势写成事实；重点看上一完整交易日、隔夜信息和开盘触发条件。 |
+| 盘中 / 午间 / 临近收盘 | 做实时状态判断、风险和机会提醒 | 关注当前价、实时行情新鲜度、partial bar、数据限制和下一步观察条件，不替代盘后完整复盘。 |
+| 盘后 | 保留完整复盘和次日计划 | 使用完整交易日语义，是默认每日分析最接近的场景。 |
+
+入口与可见性：
+
+| 入口 | 阶段行为 |
+| --- | --- |
+| `POST /api/v1/analysis/analyze` | 支持 `analysis_phase=auto|premarket|intraday|postmarket`；不传时默认 `auto`。 |
+| Web 主分析 / 重新分析 / 持仓手动分析 | 当前没有阶段覆盖 selector；前端调用默认传 `auto`。进行中任务面板展示请求阶段，最终报告页展示最终阶段标签。 |
+| Bot / CLI / schedule / 默认 GitHub Actions | 不传 `analysis_phase`，继续走 `auto` 推断；默认收盘分析行为不变。 |
+| 历史 / 回测 / 通知 / 告警 | 只消费公开 `market_phase_summary` 和低敏 `analysis_context_pack_overview`；不公开完整 pack、Prompt summary、新闻正文或持仓敏感明细。 |
+
+`analysis_phase` 是请求覆盖值，最终报告阶段仍以 `report.meta.market_phase_summary.phase` 为准。旧调用不传 `analysis_phase` 时保持兼容；旧历史缺少 `market_phase_summary` 或 `analysis_context_pack_overview` 时返回空字段，不影响报告读取。回测查询支持 `analysis_phase=premarket|intraday|postmarket|unknown` 过滤，并按 P6 规则把午间和临近收盘归入 intraday。
+
+`SAVE_CONTEXT_SNAPSHOT=false` 或 CLI `--no-context-snapshot` 只停止新历史持久化整份 `context_snapshot`，因此新历史不再公开 phase summary / pack overview / diagnostics snapshot 等持久化摘要；它不关闭当次 `AnalysisContextPack` 构建，不移除 Prompt 中的低敏 `analysis_context_pack_summary`，也不改变报告 JSON schema。调用方若要临时回到更接近旧盘后口径的输出，可固定传 `analysis_phase=postmarket`；若要彻底移除 P0-P6 阶段/pack runtime 接入，需要发布回滚或代码回滚。
 
 #### 使用 Crontab
 
