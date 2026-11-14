@@ -9,6 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+- [修复] Docker 构建与启动入口在 ARM64 架构下默认设置 `OPENBLAS_CORETYPE=ARMV8`（保留用户显式覆盖且不影响 x86_64），修复 Apple Silicon Linux 虚拟机因 OpenBLAS SME 指令分发导致 `Illegal instruction (exit code 132)` 崩溃的问题，并补充部署排障说明。
+
+- [修复] 关闭 LiteLLM 逐 chunk 的 streaming success logging（本项目未注册 LiteLLM callback，用量统计不受影响），修复 Windows 上每个流式 chunk 新建事件循环与回环 socketpair、全局线程池卡在 `accept()`，导致 CLI 打印「程序执行完成」后进程不退出且额外占用大量 CPU 的问题。
 - [修复] 实时行情基准仅接受同交易日的有效日期；Yahoo 行情使用未复权价格并区分交易日与更新时间，避免除息日涨跌方向错误及误报过期。
 
 - [修复] 盘中及盘后实时行情覆盖前，仅在报价有明确行情交易日证据时将历史 `today` 平移为 `yesterday`；缺少行情时间的港股缓存报价保留原基准，避免涨跌幅、成交量比率及行情快照涨跌额被错误重算（#2517）。
@@ -19,6 +22,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - [修复] Bark（`api.day.app`）自定义 Webhook 最终 payload 的 `body` 字段改为按 APNs 4096 字节 payload 上限截断（含全局模板渲染结果，按主机名识别 Bark），修复中文完整报告超限导致 Bark 返回 HTTP 500、手机收不到推送而测试消息正常的问题（#2503）。
 - [修复] 每日 Actions 未设置实时行情顺序时保留空值，使仅配置 TickPlus Key 的任务正确启用自动首选及批量实时预取；保留显式顺序和无 Key 免费源回退。
 
+- [修复] 韩文报告的行情快照数据源名称缺少本地化映射时回退为英文，避免 `KeyError: ko` 中断日报、决策仪表盘与单股报告生成。
 - [修复] TickPlus 正确区分裸 000001 等股票与显式同码指数；补齐行情指标、按接口冷却与分组批量缓存，ETF 轮动使用独立前复权实例，并统一首选推荐入口。
 - [新功能] 新增可选 TickPlus A 股 / ETF 日 K、实时行情与名称查询，支持配置管理、Actions Secret 和失败回退，在数据源条目中标注推荐并补充接入说明。
 
