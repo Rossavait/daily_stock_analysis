@@ -12,11 +12,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - [修复] Tushare 日线接口权限拒绝不再累计整源故障，避免 ETF 与 A 股接口互相误伤；保留网络故障计数和半开探测恢复行为。
 
 - [修复] Tushare 权限熔断仅规范化网关 URL 的协议和主机名，保留路径与查询参数大小写，避免不同路由共享拒绝缓存；切换地址后恢复 Fetcher、选股快照及日线优先源尝试，格式错误的地址仍按原有链路回退备用源。
+- [新功能] 新增 x6.ai 赞助展示与模型渠道预设，同步模型发现、OpenAI 网关路由、MiniMax 折扣模型选择及 Actions 配置。
+- [新功能] 新增 x6.ai 赞助展示、模型渠道预设及注册入口，同步模型发现、OpenAI 网关路由、MiniMax 折扣模型选择、Actions 配置与服务商展示顺序。
 
 - [修复] Docker 构建与启动入口在 ARM64 架构下默认设置 `OPENBLAS_CORETYPE=ARMV8`（保留用户显式覆盖且不影响 x86_64），修复 Apple Silicon Linux 虚拟机因 OpenBLAS SME 指令分发导致 `Illegal instruction (exit code 132)` 崩溃的问题，并补充部署排障说明。
 
 - [修复] 关闭 LiteLLM 逐 chunk 的 streaming success logging（本项目未注册 LiteLLM callback，用量统计不受影响），修复 Windows 上每个流式 chunk 新建事件循环与回环 socketpair、全局线程池卡在 `accept()`，导致 CLI 打印「程序执行完成」后进程不退出且额外占用大量 CPU 的问题。
 - [修复] 实时行情基准仅接受同交易日的有效日期；Yahoo 行情使用未复权价格并区分交易日与更新时间，避免除息日涨跌方向错误及误报过期。
+- [修复] 选股页面的控件、任务提示、热点、结果和历史记录支持中英文界面切换，切换时保留当前任务与结果。
 
 - [修复] 盘中及盘后实时行情覆盖前，仅在报价有明确行情交易日证据时将历史 `today` 平移为 `yesterday`；缺少行情时间的港股缓存报价保留原基准，避免涨跌幅、成交量比率及行情快照涨跌额被错误重算（#2517）。
 - [修复] ntfy 推送按服务端默认 4096 字节消息上限分批发送（标题带 `(1/N)` 分页），并以 UTF-8 JSON 提交请求体，修复约 1350 个汉字以上的中文报告因请求体超过 8192 字节被 ntfy 以 HTTP 413 拒收、测试消息正常但完整报告收不到的问题。
